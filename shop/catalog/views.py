@@ -6,8 +6,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from catalog.serializers import CategorySerializer, ProductSerializer, \
     DiscountSerializer, SellerSerializer, AddProductSerializer, BasketSerializer, \
-    DeleteProductSerializer
+    DeleteProductSerializer, OrderSerializer
 from django.db.models import F
+from drf_yasg.utils import swagger_auto_schema
 
 
 class CategoriesListView(ListAPIView):
@@ -61,6 +62,14 @@ class SellerProductsView(APIView):
 class BasketView(APIView):
     permission_classes = (IsAuthenticated, )
 
+    @swagger_auto_schema(
+        request_method="POST",
+        request_body=AddProductSerializer,
+        responses={
+            200: ''
+        },
+        tags=['catalogs']
+    )
     def post(self, request):
         input_serializer = AddProductSerializer(data=request.data)
         input_serializer.is_valid(raise_exception=True)
@@ -79,6 +88,13 @@ class BasketView(APIView):
 
         return Response()
 
+    @swagger_auto_schema(
+        request_method="GET",
+        responses={
+            200: BasketSerializer
+        },
+        tags=['catalog']
+    )
     def get(self, request):
         user = request.user
         basket = Product.objects.prefetch_related('basket_set').filter(basket__user=user).values(
@@ -96,3 +112,15 @@ class BasketView(APIView):
         product = Product.objects.get(id=input_serializer.data['product_id'])
         Basket.objects.get(user=request.user, product=product).delete()
         return Response()
+
+
+class OrderView(APIView):
+    permission_classes = (IsAuthenticated, )
+
+    def post(self, request):
+        input_serializer = OrderSerializer(data=request.data,
+                                           context={'request': request})
+        input_serializer.is_valid(raise_exception=True)
+
+        input_serializer.save()
+        return Response(input_serializer.data)
