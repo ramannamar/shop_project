@@ -1,4 +1,3 @@
-from django.shortcuts import render
 from catalog.models import Category, Product, Discount, Seller, Basket
 from rest_framework.views import APIView
 from rest_framework.generics import ListAPIView
@@ -6,8 +5,9 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from catalog.serializers import CategorySerializer, ProductSerializer, \
     DiscountSerializer, SellerSerializer, AddProductSerializer, BasketSerializer, \
-    DeleteProductSerializer
+    DeleteProductSerializer, OrderSerializer
 from django.db.models import F
+from catalog.tasks import some_task
 
 
 class CategoriesListView(ListAPIView):
@@ -21,6 +21,7 @@ class CategoryProductsView(APIView):
 
     def get(self, request, category_id):
         queryset = Product.objects.filter(category__id=category_id)
+        some_task.delay()
         serializer = ProductSerializer(queryset, many=True)
         return Response(serializer.data)
 
@@ -96,3 +97,16 @@ class BasketView(APIView):
         product = Product.objects.get(id=input_serializer.data['product_id'])
         Basket.objects.get(user=request.user, product=product).delete()
         return Response()
+
+
+class OrderView(APIView):
+    permission_classes = (IsAuthenticated, )
+
+    def post(self, request):
+        input_serializer = OrderSerializer(data=request.data,
+                                           context={'request': request})
+        input_serializer.is_valid(raise_exception=True)
+
+        input_serializer.save()
+        return Response(input_serializer.data)
+
